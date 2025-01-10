@@ -10,11 +10,9 @@ import xlsxwriter
 from datetime import datetime
 import logging
 import yaml
-import queue
 from flask import Flask, send_file, request, Response
 
 
-log_queue = queue.Queue()
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
 if MONTH_INT >= 10:
@@ -263,7 +261,6 @@ X_WINS, Y_WINS, TIE = -1, 1, 0
 def to_log(in_str):
     print(in_str)
     logging.info(in_str)
-    log_queue.put(in_str)
 
 
 def record_to_wins_and_losses(in_record):
@@ -841,7 +838,6 @@ def upload_file():
         return '''
         <h1>File is being processed...</h1>
         <p>Check status: <a href="/status">Click here</a></p>
-        <p>Live logs: <a href="/stream">Click here</a></p>
         '''
 
     return '''
@@ -869,7 +865,6 @@ def check_status():
         '''
     return '''
         <h1>Processing...</h1><p>Please wait and refresh this page.</p>
-        <p>Or... Watch live log and return here when ready: <a href="/stream">Watch the log</a></p>
     '''
 
 
@@ -890,18 +885,6 @@ def download_log_file():
         return "File is not ready yet. Check status at /status", 400
     return send_file(LOG_FILENAME, as_attachment=True)
 
-@app.route("/stream")
-def stream_logs():
-    """Stream log messages to the browser via SSE."""
-    def generate_logs():
-        while not processing_status["done"] or not log_queue.empty():
-            try:
-                log_message = log_queue.get(timeout=1)
-                yield f"{log_message}\n"
-            except queue.Empty:
-                pass
-
-    return Response(generate_logs(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
