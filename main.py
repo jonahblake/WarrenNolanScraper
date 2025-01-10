@@ -10,9 +10,11 @@ import xlsxwriter
 from datetime import datetime
 import logging
 import yaml
-from flask import Flask, send_file, request, render_template, jsonify
+import queue
+from flask import Flask, send_file, request, Response
 
 
+log_queue = queue.Queue()
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
 if MONTH_INT >= 10:
@@ -261,6 +263,7 @@ X_WINS, Y_WINS, TIE = -1, 1, 0
 def to_log(in_str):
     print(in_str)
     logging.info(in_str)
+    log_queue.put(in_str)
 
 
 def record_to_wins_and_losses(in_record):
@@ -785,35 +788,33 @@ def do_the_work():
                 fname = generate_output_file(team_dict_list, use_jordan_formula,
                                      visible_columns)
 
-            to_log('Log file located at %s' %
-                   logging.getLoggerClass().root.handlers[0].baseFilename)
-            to_log('All done')
+            to_log('All done. Go back to /status page to get results.')
     else:
         to_log('The config.yaml file is missing. Doing nothing, buh bye.')
 
-    return fname
+    return fname, LOG_FNAME
 
 
 app = Flask(__name__)
 
 OUTPUT_FILENAME = None
-
-# Store processing status
+LOG_FILENAME = None
 processing_status = {"done": False, "file_ready": False}
-
 
 def create_excel_file():
     global processing_status
     global OUTPUT_FILENAME
-    
+    global LOG_FILENAME
+
     processing_status["done"] = False
 
     directory = Path(".")
     for file in directory.glob("warren*xlsx"):
         if file.is_file():
             file.unlink()
-    OUTPUT_FILENAME = do_the_work()
-    
+
+    OUTPUT_FILENAME, LOG_FILENAME = do_the_work()
+
     # Mark as done
     processing_status["done"] = True
     processing_status["file_ready"] = True
@@ -827,6 +828,8 @@ def upload_file():
         file = request.files["file"]
         if file.filename == "":
             return "No selected file", 400
+        elif file.filename != "config.txt":
+            return "File must be named config.txt", 400
 
         input_filepath = os.path.join(os.getcwd(), file.filename)
         file.save(input_filepath)
@@ -838,6 +841,7 @@ def upload_file():
         return '''
         <h1>File is being processed...</h1>
         <p>Check status: <a href="/status">Click here</a></p>
+        <p>Live logs: <a href="/stream">Click here</a></p>
         '''
 
     return '''
@@ -858,12 +862,19 @@ def upload_file():
 def check_status():
     """Endpoint to check if the file is ready for download."""
     if processing_status["file_ready"]:
-        return '<h1>Processing complete!</h1><p><a href="/download">Download</a></p>'
-    return "<h1>Processing...</h1><p>Please wait and refresh this page.</p>"
+        return '''
+        <h1>Processing complete!</h1>
+        <p><a href="/download_excel">Download Excel</a></p>
+        <p><a href="/download_log">Download Log</a></p>
+        '''
+    return '''
+        <h1>Processing...</h1><p>Please wait and refresh this page.</p>
+        <p>Or... Watch live log and return here when ready: <a href="/stream">Watch the log</a></p>
+    '''
 
 
-@app.route("/download")
-def download_file():
+@app.route("/download_excel")
+def download_excel_file():
     """Download the processed Excel file."""
     global OUTPUT_FILENAME
 
@@ -871,9 +882,26 @@ def download_file():
         return "File is not ready yet. Check status at /status", 400
     return send_file(OUTPUT_FILENAME, as_attachment=True)
 
-@app.route('/')
-def home():
-    return "Go to /download to get your Excel file."
+@app.route("/download_log")
+def download_log_file():
+    global LOG_FILENAME
+
+    if not processing_status["file_ready"]:
+        return "File is not ready yet. Check status at /status", 400
+    return send_file(LOG_FILENAME, as_attachment=True)
+
+@app.route("/stream")
+def stream_logs():
+    """Stream log messages to the browser via SSE."""
+    def generate_logs():
+        while not processing_status["done"] or not log_queue.empty():
+            try:
+                log_message = log_queue.get(timeout=1)
+                yield f"{log_message}\n"
+            except queue.Empty:
+                pass
+
+    return Response(generate_logs(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
