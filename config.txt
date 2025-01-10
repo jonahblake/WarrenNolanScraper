@@ -1,0 +1,140 @@
+# Lines starting with a hash (like this one) are ignored by the program
+
+JORDAN_FORMULA:
+    # true: Sort teams by Jordan's formula
+    # false: Sort teams by NET
+    ENABLED: true
+    NEW_RECORD_COMPARISON: true
+    SOR_PTS: 8
+    ROAD_AND_NEUTRAL_PTS: 5
+    HIGH_Q1_PTS: 5
+    Q1_PTS: 5
+    Q1_AND_Q2_PTS: 5
+    Q3_AND_Q4_PTS: 1
+    Q4_PTS: 2
+    WAALT_PTS: 5
+    KPI_PTS: 5
+    BPI_PTS: 0.5
+    POM_PTS: 0.5
+    HIGH_Q1_RN_PTS: 4
+    NC_SOS_PTS: 0
+    CONF_LEADER_PTS: 0
+    BAD_NC_SOS_DEDUCT_PTS: 1
+    BAD_NC_SOS_DEDUCT_THRESHOLD: 300
+    WAB_PTS: 5
+    T-RANK_PTS: 0.5
+
+INELIGIBLE:
+    - Le Moyne
+    - Lindenwood
+    - Mercyhurst
+    - Queens
+    - Saint Thomas
+    - Southern Indiana
+    - Stonehill
+    - Texas A&M-Commerce
+    - West Georgia
+
+AT_LARGE:
+    - Auburn
+    - Kansas
+    - Tennessee
+    - Gonzaga
+    - Marquette
+    - Alabama
+    - Kentucky
+    - Iowa State
+    - Purdue
+    - Duke
+    - Oregon
+    - Florida
+    - Wisconsin
+    - Memphis
+    - Baylor
+    - Pittsburgh
+    - Houston
+    - Illinois
+    - North Carolina
+    - Cincinnati
+    - Texas AM
+    - Mississippi State
+    - Michigan State
+    - Clemson
+    - Oklahoma
+    - Saint John's
+    - Michigan
+    - Ohio State
+    - Texas
+    - Ole Miss
+    - Arizona State
+    - Utah State
+    - Connecticut
+    - San Diego State
+    - Saint Mary's College
+    - UCLA
+    - West Virginia
+    - Dayton
+    - Arkansas
+    - Georgia
+    - Maryland
+    - Penn State
+    - Drake
+    - Nebraska
+    - Vanderbilt
+    - SMU
+    - Louisville
+
+VISIBLE_COLUMNS:
+# Columns will appear in the order specified below.
+# Adding a # at the beginning will remove a column from the output
+    - NET
+#    - Team
+    - Team Link
+    - Record
+    - Conf Record
+    - At Large Record
+    - Road/Neutral Record
+    - High Q1 R/N Record
+    - High Q1 Record
+    - Q1 Record
+    - Q1/Q2 Record
+    - Q3/Q4 Losses
+    - Q4 Losses
+    - NC SOS
+    - SOR
+    - KPI
+    - BPI
+    - POM
+    - WAB
+    - T-Rank
+#    - Conf
+#    - NC Record
+#    - Home Record
+#    - Home Wins
+#    - Home Losses
+#    - Road Record
+#    - Road Wins
+#    - Road Losses
+#    - Neutral Record
+#    - Neutral Wins
+#    - Neutral Losses
+#    - Road/Neutral Wins
+#    - Road/Neutral Losses
+#    - Q1/Q2 Wins
+#    - Q1/Q2 Losses
+#    - Q1 Wins
+#    - Q1 Losses
+#    - Q2 Record
+#    - Q2 Wins
+#    - Q2 Losses
+#    - Q3 Record
+#    - Q3 Wins
+#    - Q3 Losses
+#    - Q4 Record
+#    - Q4 Wins
+#    - High Q1 Wins
+#    - High Q1 Losses
+#    - At Large Wins
+#    - At Large Losses
+#    - Avg NET Wins
+#    - Avg NET Losses
