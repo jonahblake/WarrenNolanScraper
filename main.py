@@ -861,10 +861,15 @@ def upload_file():
     <html>
         <body>
             <h1>Upload Input File</h1>
-            <form action="/" method="post" enctype="multipart/form-data">
-                <input type="file" name="file">
-                <input type="submit" value="Upload and Process">
+            <form id="uploadForm" action="/" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" id="fileInput">
             </form>
+
+            <script>
+                document.getElementById("fileInput").addEventListener("change", function() {
+                    document.getElementById("uploadForm").submit();
+                });
+            </script>
         </body>
     </html>
     '''
