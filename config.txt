@@ -4,6 +4,7 @@ JORDAN_FORMULA:
     # true: Sort teams by Jordan's formula
     # false: Sort teams by NET
     ENABLED: true
+    SELECT_MODE: true
     NEW_RECORD_COMPARISON: true
     SOR_PTS: 8
     ROAD_AND_NEUTRAL_PTS: 5
@@ -23,6 +24,9 @@ JORDAN_FORMULA:
     BAD_NC_SOS_DEDUCT_THRESHOLD: 300
     WAB_PTS: 5
     T-RANK_PTS: 0.5
+    BPI_SELECT_PTS: 5
+    POM_SELECT_PTS: 5
+    T-RANK_SELECT_PTS: 5
 
 INELIGIBLE:
     - Le Moyne
@@ -83,6 +87,25 @@ AT_LARGE:
     - Vanderbilt
     - SMU
     - Louisville
+
+SELECTED:
+    - Cincinnati
+    - Texas AM
+    - Mississippi State
+    - Michigan State
+    - Clemson
+    - Oklahoma
+    - Saint John's
+    - Michigan
+    - Ohio State
+    - Texas
+    - Ole Miss
+    - Arizona State
+    - Utah State
+    - Connecticut
+    - San Diego State
+    - Saint Mary's College
+    - UCLA
 
 VISIBLE_COLUMNS:
 # Columns will appear in the order specified below.

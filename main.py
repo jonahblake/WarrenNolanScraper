@@ -1,6 +1,3 @@
-# To export to executable file:
-# pyinstaller.exe --onefile warrennolan_scraper.py
-
 import os
 import threading
 from pathlib import Path
@@ -8,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 import xlsxwriter
 from datetime import datetime
+import pytz
 import logging
 import yaml
 from flask import Flask, send_file, request, Response
@@ -18,6 +16,8 @@ YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
 if MONTH_INT >= 10:
     YEAR_INT += 1
 
+SELECT_MODE = False
+SELECT_TEAMS = []
 MEN_URL = f'http://warrennolan.com/basketball/{str(YEAR_INT)}/net-nitty'
 TEAM_URL_TEMPLATE = f'http://warrennolan.com/basketball/{str(YEAR_INT)}/team-net-sheet?team='
 LOG_FNAME = 'warrennolan_log.txt'
@@ -349,8 +349,10 @@ def compare_metrics(metrics_tup_list, x, y, x_pts, y_pts):
 
 
 def compare_teams(x, y, formula):
+    global SELECT_MODE
 
     x_pts, y_pts = 0.0, 0.0
+    SELECT = 'SELECT_' if SELECT_MODE else ''
 
     METRICS_TUP_LIST = [
         ('sor', formula.get('SOR_PTS', 0)),
@@ -358,18 +360,21 @@ def compare_teams(x, y, formula):
         ('q4_losses', formula.get('Q4_PTS', 0)),
         ('kpi', formula.get('KPI_PTS', 0)),
         ('wab', formula.get('WAB_PTS', 0)),
-        ('bpi', formula.get('BPI_PTS', 0)),
-        ('pom', formula.get('POM_PTS', 0)),
-        ('t_rank', formula.get('T-RANK_PTS', 0)),
         ('nc_sos', formula.get('NC_SOS_PTS', 0)),
+        ('bpi', formula.get(f'BPI_{SELECT}PTS', 0)),
+        ('pom', formula.get(f'POM_{SELECT}PTS', 0)),
+        ('t_rank', formula.get(f'T-RANK_{SELECT}PTS', 0)),
     ]
 
-    RECORDS_TUP_LIST = [('al', formula.get('WAALT_PTS', 0)),
-                        ('road_neutral', formula.get('ROAD_AND_NEUTRAL_PTS')),
-                        ('high_q1', formula.get('HIGH_Q1_PTS')),
-                        ('high_q1_rn', formula.get('HIGH_Q1_RN_PTS')),
-                        ('q1', formula.get('Q1_PTS')),
-                        ('q1_q2', formula.get('Q1_AND_Q2_PTS'))]
+
+    RECORDS_TUP_LIST = [
+        ('al', formula.get('WAALT_PTS', 0)),
+        ('road_neutral', formula.get('ROAD_AND_NEUTRAL_PTS')),
+        ('high_q1', formula.get('HIGH_Q1_PTS')),
+        ('high_q1_rn', formula.get('HIGH_Q1_RN_PTS')),
+        ('q1', formula.get('Q1_PTS')),
+        ('q1_q2', formula.get('Q1_AND_Q2_PTS'))
+    ]
 
     x_pts, y_pts = compare_metrics(METRICS_TUP_LIST, x, y, x_pts, y_pts)
     x_pts, y_pts = compare_records(RECORDS_TUP_LIST, x, y, x_pts, y_pts,
@@ -486,8 +491,10 @@ def get_team_stats(in_team, at_large_teams):
 
 
 def generate_output_file(sorted_input, jordan_formula, visible_columns):
-    today_str = datetime.strftime(datetime.today(), '%Y-%m-%d %H%M')
-    fname = f"warrennolan_nitty_{'formula' if jordan_formula else 'net'}_sorted_{today_str}.xlsx"
+    now_et = datetime.now(pytz.timezone('America/New_York'))
+    today_str = now_et.strftime('%Y-%m-%d %H%M')
+    eo_name = "selected" if SELECT_MODE else "sorted"
+    fname = f"warrennolan_nitty_{'formula' if jordan_formula else 'net'}_{eo_name}_{today_str}.xlsx"
     to_log(f'Generating file at {os.getcwd()}\\{fname}')
     with xlsxwriter.Workbook(fname) as workbook:
         worksheet = workbook.add_worksheet()
@@ -584,9 +591,13 @@ def cleanse_team_data(row):
 
 def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
                          ineligible_teams, ineligible):
+    global SELECT_TEAMS
+    global SELECT_MODE
+
     team_data_obj = None
     net, team, conf, conf_record, overall_record, sos, nc_record, nc_sos, home_record, road_record, neutral_record, q1_record, q2_record, q3_record, q4_record, avg_net_wins, avg_net_losses = cleansed_team_data
-    if not ineligible and team not in ineligible_teams:
+
+    if not ineligible and team not in ineligible_teams and (not SELECT_MODE or team in SELECT_TEAMS):
         to_log('   Getting {team} Stats'.format(team=team))
         team_url, kpi, sor, wab, bpi, pom, t_rank, high_q1_record, high_q1_wins, high_q1_losses, high_q1_rn_record, high_q1_rn_wins, high_q1_rn_losses, al_record, al_wins, al_losses = get_team_stats(
             team, at_large_teams)
@@ -664,7 +675,7 @@ def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
             'conf_leader': conf_leader
         }
     else:
-        to_log(f'   Skipping {team} due to ineligibility')
+        to_log(f'   Skipping {team} due to ineligibility and/or not being SELECTED')
 
     return team_data_obj
 
@@ -748,6 +759,9 @@ def sort_teams(in_list, formula):
 
 
 def do_the_work():
+    global SELECT_MODE
+    global SELECT_TEAMS
+
     config_file = 'config.txt'
     fname = None
     if os.path.exists(config_file):
@@ -762,22 +776,24 @@ def do_the_work():
             at_large_teams = set(config.get('AT_LARGE', []) or [])
             raw_table_data = get_net_nitty_raw_data()
 
+            use_jordan_formula = 'JORDAN_FORMULA' in config and config['JORDAN_FORMULA'].get('ENABLED', False)
+            visible_columns = config.get('VISIBLE_COLUMNS', [])
+
+            if use_jordan_formula:
+                SELECT_MODE = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
+                SELECT_TEAMS = set(config.get('SELECTED', []) or [])
+
             to_log('Getting all team stats')
             for row in raw_table_data[1:]:
-                team_data = extract_team_data(row, at_large_teams,
-                                              ineligible_teams)
+                team_data = extract_team_data(row, at_large_teams, ineligible_teams)
                 if team_data:
                     team_dict_list.append(team_data)
 
-            use_jordan_formula = 'JORDAN_FORMULA' in config and config[
-                'JORDAN_FORMULA'].get('ENABLED', False)
-            visible_columns = config.get('VISIBLE_COLUMNS', [])
             if not visible_columns:
                 to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
             elif use_jordan_formula:
                 to_log('\n\nSorting results and writing to file\n')
-                sorted_team_list = sort_teams(team_dict_list,
-                                              config['JORDAN_FORMULA'])
+                sorted_team_list = sort_teams(team_dict_list, config['JORDAN_FORMULA'])
                 fname = generate_output_file(sorted_team_list, use_jordan_formula,
                                      visible_columns)
             else:
