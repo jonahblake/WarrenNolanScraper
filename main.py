@@ -1,14 +1,16 @@
-import os
-import threading
-from pathlib import Path
-import requests
 from bs4 import BeautifulSoup
-import xlsxwriter
 from datetime import datetime
-import pytz
-import logging
-import yaml
 from flask import Flask, send_file, request, Response
+import json
+import logging
+import os
+from pathlib import Path
+import pytz
+import requests
+import time
+import threading
+import xlsxwriter
+import yaml
 
 
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
@@ -852,8 +854,27 @@ def upload_file():
         thread.start()
 
         return '''
-        <h1>File is being processed...</h1>
-        <p>Check status: <a href="/status">Click here</a></p>
+        <!doctype html>
+        <html>
+            <body>
+                <h1>File is being processed...</h1>
+                <div id="status">Chillax, I'll let you know when it's done...</div>
+                <script>
+                    const eventSource = new EventSource("/events");
+                    eventSource.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        if (data.status === "ready") {
+                            document.getElementById("status").innerHTML = `
+                                <h1>Processing complete!</h1>
+                                <p><a href="/download_excel">Download Excel</a></p>
+                                <p><a href="/download_log">Download Log</a></p>
+                            `;
+                            eventSource.close();
+                        }
+                    };
+                </script>
+            </body>
+        </html>
         '''
 
     return '''
@@ -875,18 +896,16 @@ def upload_file():
     '''
 
 
-@app.route("/status")
-def check_status():
-    """Endpoint to check if the file is ready for download."""
-    if processing_status["file_ready"]:
-        return '''
-        <h1>Processing complete!</h1>
-        <p><a href="/download_excel">Download Excel</a></p>
-        <p><a href="/download_log">Download Log</a></p>
-        '''
-    return '''
-        <h1>Processing...</h1><p>Please wait and refresh this page.</p>
-    '''
+@app.route("/events")
+def events():
+    """Stream updates to the browser using Server-Sent Events (SSE)."""
+    def event_stream():
+        while not processing_status["file_ready"]:
+            yield f"data: {json.dumps({'status': 'processing'})}\n\n"
+            time.sleep(1)
+        yield f"data: {json.dumps({'status': 'ready'})}\n\n"
+
+    return Response(event_stream(), content_type="text/event-stream")
 
 
 @app.route("/download_excel")
