@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from datetime import datetime
 from flask import Flask, send_file, request, Response
+import gc
 import json
 import logging
 import os
@@ -429,7 +430,7 @@ def get_team_stats(in_team, at_large_teams):
     page = requests.get(team_url)
     team_hyperlink = f'=HYPERLINK("{team_url}", "{in_team}")'
     soup = BeautifulSoup(page.content, 'html.parser')
-    tables = soup.find_all("table")
+    del page
 
     al_wins, al_losses = 0, 0
     high_q1_wins, high_q1_losses = 0, 0
@@ -451,6 +452,7 @@ def get_team_stats(in_team, at_large_teams):
 
     q1_idx = soup.text[kpi_idx:].find('H: 1-15 |')
     line_split = soup.text[kpi_idx + q1_idx:].split('\n')
+    del soup
     line_idx = 10
     while line_idx < len(line_split):
         line = line_split[line_idx]
@@ -559,7 +561,11 @@ def get_net_nitty_raw_data():
     page = requests.get(MEN_URL)
     soup = BeautifulSoup(page.content, 'html.parser')
     tables = soup.find_all("table")
+    if len(tables) > 1:
+        del tables[1:]
     table = tables[0]
+    del page
+    del soup
     return [[(cell.text, cell.attrs.get('style', ''))
              for cell in row.find_all(["th", "td"])]
             for row in table.find_all("tr")]
@@ -690,9 +696,11 @@ def extract_team_data(row, at_large_teams, ineligible_teams):
     team_data_obj = None
     if not row[0][0].startswith('NET\n'):
         cleansed_team_data, conf_leader, ineligible = cleanse_team_data(row)
+        del row
         team_data_obj = create_team_data_obj(cleansed_team_data, conf_leader,
                                              at_large_teams, ineligible_teams,
                                              ineligible)
+        del cleansed_team_data
 
     return team_data_obj
 
@@ -794,6 +802,7 @@ def do_the_work():
                 team_data = extract_team_data(row, at_large_teams, ineligible_teams)
                 if team_data:
                     team_dict_list.append(team_data)
+                gc.collect()
 
             if not visible_columns:
                 to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
