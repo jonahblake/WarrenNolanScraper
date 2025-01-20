@@ -13,7 +13,6 @@ import threading
 import xlsxwriter
 import yaml
 
-
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
 if MONTH_INT >= 10:
@@ -717,27 +716,6 @@ def splice_in_team_dict(team_dict, out_list, team_dict_idx):
     return out_list
 
 
-def get_team_set_from_file(filename):
-    team_set = set()
-
-    if os.path.exists(filename):
-        with open(filename) as team_file:
-            for team_name in team_file.readlines():
-                team_set.add(team_name.replace('\n', ''))
-    else:
-        to_log(
-            '*******************************************************************'
-        )
-        to_log(
-            '   %s FILE NOT FOUND. I will behave as if the file exists but is empty.'
-            % filename)
-        to_log(
-            '*******************************************************************'
-        )
-
-    return team_set
-
-
 def sort_teams(in_list, formula):
     out_list = []
     log_bottom_list = []
@@ -929,11 +907,10 @@ def events():
     """Stream updates to the browser using Server-Sent Events (SSE)."""
     def event_stream():
         while processing_status["in_progress"]:
-            time.sleep(5)
+            time.sleep(20)
         yield f"data: {json.dumps({'status': 'ready'})}\n\n"
 
     return Response(event_stream(), content_type="text/event-stream")
-
 
 @app.route("/download_excel")
 def download_excel_file():
