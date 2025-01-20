@@ -807,7 +807,7 @@ def do_the_work():
                 fname = generate_output_file(team_dict_list, use_jordan_formula,
                                      visible_columns)
 
-            to_log('All done. Go back to /status page to get results.')
+            to_log('All done.')
     else:
         to_log('The config.yaml file is missing. Doing nothing, buh bye.')
 
@@ -818,14 +818,15 @@ app = Flask(__name__)
 
 OUTPUT_FILENAME = None
 LOG_FILENAME = None
-processing_status = {"done": False, "file_ready": False}
+processing_status = {"in_progress": False, "file_downloaded": True}
 
 def create_excel_file():
     global processing_status
     global OUTPUT_FILENAME
     global LOG_FILENAME
 
-    processing_status["done"] = False
+    processing_status["in_progress"] = True
+    processing_status["file_downloaded"] = False
 
     directory = Path(".")
     for file in directory.glob("warren*xlsx"):
@@ -835,29 +836,11 @@ def create_excel_file():
     OUTPUT_FILENAME, LOG_FILENAME = do_the_work()
 
     # Mark as done
-    processing_status["done"] = True
-    processing_status["file_ready"] = True
+    processing_status["in_progress"] = False
 
 
-@app.route("/", methods=["GET", "POST"])
-def upload_file():
-    if request.method == "POST":
-        if "file" not in request.files:
-            return "No file uploaded", 400
-        file = request.files["file"]
-        if file.filename == "":
-            return "No selected file", 400
-        elif file.filename != "config.txt":
-            return "File must be named config.txt", 400
-
-        input_filepath = os.path.join(os.getcwd(), file.filename)
-        file.save(input_filepath)
-
-        # Start processing in a separate thread
-        thread = threading.Thread(target=create_excel_file)
-        thread.start()
-
-        return '''
+def in_progress():
+    return '''
         <!doctype html>
         <html>
             <body>
@@ -879,34 +862,65 @@ def upload_file():
                 </script>
             </body>
         </html>
-        '''
-
-    return '''
-    <!doctype html>
-    <html>
-        <body>
-            <h1>Upload Input File</h1>
-            <form id="uploadForm" action="/" method="post" enctype="multipart/form-data">
-                <input type="file" name="file" id="fileInput">
-            </form>
-
-            <script>
-                document.getElementById("fileInput").addEventListener("change", function() {
-                    document.getElementById("uploadForm").submit();
-                });
-            </script>
-        </body>
-    </html>
     '''
+
+
+def upload_config():
+    return '''
+        <!doctype html>
+        <html>
+            <body>
+                <h1>Upload Input File</h1>
+                <form id="uploadForm" action="/" method="post" enctype="multipart/form-data">
+                    <input type="file" name="file" id="fileInput">
+                </form>
+    
+                <script>
+                    document.getElementById("fileInput").addEventListener("change", function() {
+                        document.getElementById("uploadForm").submit();
+                    });
+                </script>
+            </body>
+        </html>
+    '''
+
+
+@app.route("/", methods=["GET", "POST"])
+def home_page():
+    if request.method == "POST":
+        if "file" not in request.files:
+            return "No file uploaded", 400
+        file = request.files["file"]
+        if file.filename == "":
+            return "No selected file", 400
+        elif file.filename != "config.txt":
+            return "File must be named config.txt", 400
+        elif processing_status["in_progress"]:
+            return 'Request in progress. Cannot start a new request until the last one is done. <a href="/">Click here</a>', 400
+        elif not processing_status["file_downloaded"]:
+            return 'Last request is complete but excel file has not been downloaded. Cannot start new request until the excel file has been <a href="/download_excel">downloaded</a>.', 400
+        else:
+            input_filepath = os.path.join(os.getcwd(), file.filename)
+            file.save(input_filepath)
+
+            # Start processing in a separate thread
+            thread = threading.Thread(target=create_excel_file)
+            thread.start()
+
+            return in_progress()
+    elif request.method == "GET":
+        if not processing_status["in_progress"]:
+            return upload_config()
+        else:
+            return in_progress()
 
 
 @app.route("/events")
 def events():
     """Stream updates to the browser using Server-Sent Events (SSE)."""
     def event_stream():
-        while not processing_status["file_ready"]:
-            yield f"data: {json.dumps({'status': 'processing'})}\n\n"
-            time.sleep(1)
+        while processing_status["in_progress"]:
+            time.sleep(5)
         yield f"data: {json.dumps({'status': 'ready'})}\n\n"
 
     return Response(event_stream(), content_type="text/event-stream")
@@ -917,17 +931,43 @@ def download_excel_file():
     """Download the processed Excel file."""
     global OUTPUT_FILENAME
 
-    if not processing_status["file_ready"]:
-        return "File is not ready yet. Check status at /status", 400
+    if processing_status["in_progress"]:
+        return "File is not ready yet", 400
+    elif processing_status["file_downloaded"]:
+        return "File was already downloaded. Check your Downloads folder.", 400
+    else:
+        processing_status["file_downloaded"] = True
+        return f"""
+        <!doctype html>
+        <html>
+            <body>
+                <a id="downloadLink" href="/get_excel" download>Download</a>
+                <script>
+                    document.getElementById("downloadLink").click();
+                    setTimeout(function() {{
+                        window.location.href = "/";
+                    }}, 1000);
+                </script>
+            </body>
+        </html>
+        """
+
+
+@app.route("/get_excel")
+def get_excel():
+    """Serve the file for download."""
+    global OUTPUT_FILENAME
     return send_file(OUTPUT_FILENAME, as_attachment=True)
+
 
 @app.route("/download_log")
 def download_log_file():
     global LOG_FILENAME
 
-    if not processing_status["file_ready"]:
-        return "File is not ready yet. Check status at /status", 400
-    return send_file(LOG_FILENAME, as_attachment=True)
+    if processing_status["in_progress"]:
+        return "File is not ready yet", 400
+    else:
+        return send_file(LOG_FILENAME, as_attachment=True)
 
 
 if __name__ == "__main__":
