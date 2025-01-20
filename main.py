@@ -260,8 +260,9 @@ COL_SETTINGS = {
 X_WINS, Y_WINS, TIE = -1, 1, 0
 
 
-def to_log(in_str):
-    print(in_str)
+def to_log(in_str, to_stdout=True):
+    if to_stdout:
+        print(in_str)
     logging.info(in_str)
 
 
@@ -325,7 +326,8 @@ def compare_records(records_tup_list, x, y, x_pts, y_pts,
                                       y[metric_prefix + '_losses'], metric_pts,
                                       x_pts, y_pts, new_record_comparison)
         to_log(
-            f'      {metric_prefix} record for {metric_pts} points ||| {x["team"]} {x_pts} - {y["team"]} {y_pts}'
+            f'      {metric_prefix} record for {metric_pts} points ||| {x["team"]} {x_pts} - {y["team"]} {y_pts}',
+            to_stdout=False
         )
 
     return x_pts, y_pts
@@ -344,7 +346,8 @@ def compare_metrics(metrics_tup_list, x, y, x_pts, y_pts):
         x_pts, y_pts = compare_metric(x[metric_key], y[metric_key], metric_pts,
                                       x_pts, y_pts)
         to_log(
-            f'      {metric_key} for {metric_pts} points ||| {x["team"]} {x_pts} - {y["team"]} {y_pts}'
+            f'      {metric_key} for {metric_pts} points ||| {x["team"]} {x_pts} - {y["team"]} {y_pts}',
+            to_stdout=False
         )
 
     return x_pts, y_pts
@@ -406,14 +409,15 @@ def compare_teams(x, y, formula):
         point_diff = y_pts - x_pts
         point_suffix = 's' if point_diff > 1 else ''
         to_log(
-            f'   {y["team"]} > {x["team"]} by {y_pts - x_pts} point{point_suffix} | ({y_pts} - {x_pts})'
+            f'   {y["team"]} > {x["team"]} by {y_pts - x_pts} point{point_suffix} | ({y_pts} - {x_pts})',
+            to_stdout=False
         )
         return 1
     else:
         if x['net'] < y['net']:
-            to_log('   %s > %s due to NET ranking' % (x['team'], y['team']))
+            to_log('   %s > %s due to NET ranking' % (x['team'], y['team']), to_stdout=False)
         else:
-            to_log('   %s > %s due to NET ranking' % (y['team'], x['team']))
+            to_log('   %s > %s due to NET ranking' % (y['team'], x['team']), to_stdout=False)
         return x['net'] - y['net']
 
 
