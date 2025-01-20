@@ -941,7 +941,7 @@ def download_excel_file():
         <!doctype html>
         <html>
             <body>
-                <a id="downloadLink" href="/get_excel" download>Download</a>
+                <a id="downloadLink" href="/get_excel" download></a>
                 <script>
                     document.getElementById("downloadLink").click();
                     setTimeout(function() {{
