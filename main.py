@@ -832,21 +832,7 @@ def in_progress():
         <html>
             <body>
                 <h1>File is being processed...</h1>
-                <div id="status">Chillax, I'll let you know when it's done...</div>
-                <script>
-                    const eventSource = new EventSource("/events");
-                    eventSource.onmessage = function(event) {
-                        const data = JSON.parse(event.data);
-                        if (data.status === "ready") {
-                            document.getElementById("status").innerHTML = `
-                                <h1>Processing complete!</h1>
-                                <p><a href="/download_excel">Download Excel</a></p>
-                                <p><a href="/download_log">Download Log</a></p>
-                            `;
-                            eventSource.close();
-                        }
-                    };
-                </script>
+               <p>Check status: <a href="/status">Click here</a></p>
             </body>
         </html>
     '''
@@ -902,15 +888,23 @@ def home_page():
             return in_progress()
 
 
-@app.route("/events")
-def events():
-    """Stream updates to the browser using Server-Sent Events (SSE)."""
-    def event_stream():
-        while processing_status["in_progress"]:
-            time.sleep(20)
-        yield f"data: {json.dumps({'status': 'ready'})}\n\n"
-
-    return Response(event_stream(), content_type="text/event-stream")
+@app.route("/status")
+def check_status():
+    """Endpoint to check if the file is ready for download."""
+    if not processing_status["in_progress"] and not processing_status["file_downloaded"]:
+        return '''
+        <h1>Processing complete!</h1>
+        <p><a href="/download_excel">Download Excel</a></p>
+        <p><a href="/download_log">Download Log</a></p>
+        '''
+    elif processing_status["in_progress"] and not processing_status["file_downloaded"]:
+        return '''
+            <h1>Processing...</h1><p>Please wait and refresh this page.</p>
+        '''
+    elif not processing_status["in_progress"] and processing_status["file_downloaded"]:
+        return '''
+            <h1>Processing...</h1><p>Processing complete and the output has been downloaded. Go <a href="/">home</a></p>
+        '''
 
 @app.route("/download_excel")
 def download_excel_file():
