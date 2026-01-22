@@ -856,7 +856,7 @@ def upload_config():
     '''
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def home_page():
     if request.method == "POST":
         if "file" not in request.files:
@@ -884,6 +884,8 @@ def home_page():
             return upload_config()
         else:
             return in_progress()
+    elif request.method == "HEAD":
+        return "", 200
 
 
 @app.route("/status")
