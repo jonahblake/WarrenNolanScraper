@@ -422,9 +422,7 @@ def compare_teams(x, y, formula):
 
 
 def get_team_stats(in_team, at_large_teams):
-    in_team = in_team.replace(' ', '-').replace("'",
-                                                "").replace('&', '').replace(
-                                                    '(', '').replace(')', '')
+    in_team = (in_team.replace(' ', '-').replace("'", "").replace('&', '').replace('(', '').replace(')', '').replace('.', '').replace('--', '-'))
     team_url = TEAM_URL_TEMPLATE + in_team
     page = requests.get(team_url)
     team_hyperlink = f'=HYPERLINK("{team_url}", "{in_team}")'
