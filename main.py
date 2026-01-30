@@ -14,7 +14,7 @@ import xlsxwriter
 import yaml
 import queue
 
-log_queue = queue.Queue()
+status_queue = queue.Queue()
 
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
@@ -279,7 +279,7 @@ def to_log(in_str, to_stdout=True):
         # Split multi-line messages and enqueue each line separately
         for line in in_str.splitlines():
             # Put a line in the queue immediately for streaming
-            log_queue.put(line)
+            status_queue.put(line)
 
     # Log to file via logging
     logging.info(in_str)
@@ -622,6 +622,7 @@ def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
 
     if not ineligible and team not in ineligible_teams and (not select_mode or team in select_teams):
         to_log('   Getting {team} Stats'.format(team=team))
+        status_queue.put('   Getting {team} Stats'.format(team=team))
         team_url, kpi, sor, wab, bpi, pom, t_rank, high_q1_record, high_q1_wins, high_q1_losses, high_q1_rn_record, high_q1_rn_wins, high_q1_rn_losses, al_record, al_wins, al_losses = get_team_stats(
             team, at_large_teams)
         home_wins, home_losses = record_to_wins_and_losses(home_record)
@@ -762,6 +763,14 @@ def sort_teams(in_list, formula, select_mode):
     return out_list
 
 
+def scrape_team_stats(raw_table_data, at_large_teams, ineligible_teams, select_mode, select_teams, team_dict_list):
+    """Long-running scraping task."""
+    for row in raw_table_data[1:]:
+        team_data = extract_team_data(row, at_large_teams, ineligible_teams, select_mode, select_teams)
+        if team_data:
+            team_dict_list.append(team_data)
+
+
 def do_the_work():
     config_file = 'config.txt'
     fname = None
@@ -787,11 +796,7 @@ def do_the_work():
                 select_mode, select_teams = False, []
 
             to_log('Getting all team stats')
-            for row in raw_table_data[1:]:
-                team_data = extract_team_data(row, at_large_teams, ineligible_teams, select_mode, select_teams)
-                if team_data:
-                    team_dict_list.append(team_data)
-                gc.collect()
+            scrape_team_stats(raw_table_data, at_large_teams, ineligible_teams, select_mode, select_teams, team_dict_list)
 
             if not visible_columns:
                 to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
@@ -850,7 +855,7 @@ def create_excel_file():
         finally:
             if processing_status[STATE] != ERROR:
                 processing_status[STATE] = DOWNLOAD_READY
-        log_queue.put("__done__")
+        status_queue.put("DONE")  # Signal completion
 
 
 def in_progress():
@@ -917,6 +922,7 @@ def home_page():
 
             # Start processing in a separate thread
             thread = threading.Thread(target=create_excel_file)
+            thread.daemon = True
             thread.start()
 
             return in_progress()
@@ -929,36 +935,18 @@ def home_page():
         return "", 200
 
 
+from flask import Response
+
 @app.route("/status_stream")
 def status_stream():
     def generate():
-        done_sent = False
         while True:
-            # Send all queued lines immediately
-            while not log_queue.empty():
-                msg = log_queue.get()
-                if msg == "__done__":
-                    done_sent = True
-                    continue
-                for line in str(msg).splitlines():
-                    # Send the line and force flush
-                    yield f"data: {line}\n\n"
-                    yield ": \n\n"  # SSE comment → forces flush
-
-            # Finish if done and queue is empty
-            if done_sent and log_queue.empty():
-                yield "data: __done__\n\n"
+            line = status_queue.get()  # Wait for next line
+            if line == "DONE":
                 break
+            yield f"data: {line}\n\n"  # SSE format
 
-            # Short heartbeat if queue is empty to keep connection alive
-            yield ": \n\n"
-            time.sleep(0.05)
-
-    return Response(generate(), mimetype="text/event-stream",
-                    headers={
-                        "Cache-Control": "no-cache",
-                        "X-Accel-Buffering": "no"
-                    })
+    return Response(generate(), mimetype="text/event-stream")
 
 
 @app.route("/status")
