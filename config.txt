@@ -4,9 +4,9 @@ JORDAN_FORMULA:
     # true: Sort teams by Jordan's formula
     # false: Sort teams by NET
     ENABLED: true
-    SELECT_MODE: false
+    SELECT_MODE: true
     NEW_RECORD_COMPARISON: true
-    SOR_PTS: 8
+    SOR_PTS: 12
     ROAD_AND_NEUTRAL_PTS: 5
     HIGH_Q1_PTS: 5
     Q1_PTS: 5
@@ -15,97 +15,142 @@ JORDAN_FORMULA:
     Q4_PTS: 2
     WAALT_PTS: 5
     KPI_PTS: 5
-    BPI_PTS: 0.5
-    POM_PTS: 0.5
+    BPI_PTS: 0
+    POM_PTS: 0
     HIGH_Q1_RN_PTS: 4
     NC_SOS_PTS: 0
     CONF_LEADER_PTS: 0
     BAD_NC_SOS_DEDUCT_PTS: 1
     BAD_NC_SOS_DEDUCT_THRESHOLD: 300
     WAB_PTS: 5
-    T-RANK_PTS: 0.5
+    T-RANK_PTS: 0
     BPI_SELECT_PTS: 5
     POM_SELECT_PTS: 5
     T-RANK_SELECT_PTS: 5
 
 INELIGIBLE:
     - Le Moyne
-    - Lindenwood
     - Mercyhurst
-    - Queens
-    - Saint Thomas
-    - Southern Indiana
-    - Stonehill
-    - Texas A&M-Commerce
+    - New Haven
     - West Georgia
 
 AT_LARGE:
-    - Auburn
-    - Kansas
-    - Tennessee
-    - Gonzaga
-    - Marquette
-    - Alabama
-    - Kentucky
-    - Iowa State
-    - Purdue
+    - Michigan
     - Duke
-    - Oregon
-    - Florida
-    - Wisconsin
-    - Memphis
-    - Baylor
-    - Pittsburgh
+    - Purdue
+    - Vanderbilt
+    - Gonzaga
+    - Arizona
+    - Iowa State
+    - Connecticut
+    - Louisville
+    - Michigan State
+    - Tennessee
+    - BYU
+    - Alabama
+    - Iowa
+    - Kansas
     - Houston
+    - USC
+    - Utah State
     - Illinois
     - North Carolina
-    - Cincinnati
-    - Texas AM
-    - Mississippi State
-    - Michigan State
-    - Clemson
-    - Oklahoma
-    - Saint John's
-    - Michigan
-    - Ohio State
-    - Texas
-    - Ole Miss
-    - Arizona State
-    - Utah State
-    - Connecticut
-    - San Diego State
+    - Nebraska
     - Saint Mary's College
-    - UCLA
-    - West Virginia
-    - Dayton
+    - Auburn
+    - Virginia
+    - Florida
+    - Clemson
+    - Texas Tech
+    - SMU
+    - Saint Louis
+    - UCF
     - Arkansas
     - Georgia
-    - Maryland
-    - Penn State
-    - Drake
-    - Nebraska
-    - Vanderbilt
-    - SMU
-    - Louisville
+    - Miami (FL)
+    - George Mason
+    - Miami (OH)
+    - Villanova
+    - Stanford
+    - Wisconsin
+    - Texas A&M
+    - Saint John's
+    - Kentucky
+    - UCLA
+    - North Carolina State
+    - Santa Clara
+    - New Mexico
 
 SELECTED:
-    - Cincinnati
-    - Texas AM
-    - Mississippi State
-    - Michigan State
-    - Clemson
-    - Oklahoma
-    - Saint John's
     - Michigan
-    - Ohio State
-    - Texas
-    - Ole Miss
-    - Arizona State
-    - Utah State
+    - Duke
+    - Purdue
+    - Vanderbilt
+    - Gonzaga
+    - Arizona
+    - Iowa State
     - Connecticut
-    - San Diego State
+    - Louisville
+    - Michigan State
+    - Tennessee
+    - BYU
+    - Alabama
+    - Iowa
+    - Kansas
+    - Houston
+    - USC
+    - Utah State
+    - Illinois
+    - North Carolina
+    - Nebraska
     - Saint Mary's College
+    - Auburn
+    - Virginia
+    - Florida
+    - Clemson
+    - Texas Tech
+    - SMU
+    - Saint Louis
+    - UCF
+    - Arkansas
+    - Georgia
+    - Miami (FL)
+    - Miami (OH)
+    - Villanova
+    - Stanford
+    - Kentucky
+    - Wisconsin
+    - Texas A&M
+    - Saint John's
     - UCLA
+    - George Mason
+    - North Carolina State
+    - New Mexico
+    - Santa Clara
+    - San Diego State
+    - Belmont
+    - Liberty
+    - Yale
+    - Stephen F. Austin
+    - Tulsa
+    - Troy
+    - UNCW
+    - Portland State
+    - North Dakota State
+    - Hawaii
+    - UTA
+    - "Tennessee-Martin"
+    - Austin Peay
+    - Winthrop
+    - East Tennessee State
+    - Navy
+    - Long Island
+    - Wright State
+    - Merrimack
+    - UMBC
+    - "Bethune-Cookman"
+    - Maryland Eastern Shore
+
 
 VISIBLE_COLUMNS:
 # Columns will appear in the order specified below.
@@ -126,9 +171,9 @@ VISIBLE_COLUMNS:
     - NC SOS
     - SOR
     - KPI
+    - WAB
     - BPI
     - POM
-    - WAB
     - T-Rank
 #    - Conf
 #    - NC Record

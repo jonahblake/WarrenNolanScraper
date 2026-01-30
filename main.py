@@ -18,8 +18,6 @@ YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
 if MONTH_INT >= 10:
     YEAR_INT += 1
 
-SELECT_MODE = False
-SELECT_TEAMS = []
 MEN_URL = f'http://warrennolan.com/basketball/{str(YEAR_INT)}/net-nitty'
 TEAM_URL_TEMPLATE = f'http://warrennolan.com/basketball/{str(YEAR_INT)}/team-net-sheet?team='
 LOG_FNAME = 'warrennolan_log.txt'
@@ -353,11 +351,9 @@ def compare_metrics(metrics_tup_list, x, y, x_pts, y_pts):
     return x_pts, y_pts
 
 
-def compare_teams(x, y, formula):
-    global SELECT_MODE
-
+def compare_teams(x, y, formula, select_mode):
     x_pts, y_pts = 0.0, 0.0
-    SELECT = 'SELECT_' if SELECT_MODE else ''
+    SELECT = 'SELECT_' if select_mode else ''
 
     METRICS_TUP_LIST = [
         ('sor', formula.get('SOR_PTS', 0)),
@@ -495,10 +491,10 @@ def get_team_stats(in_team, at_large_teams):
            high_q1_rn_wins, high_q1_rn_losses, al_record, al_wins, al_losses
 
 
-def generate_output_file(sorted_input, jordan_formula, visible_columns):
+def generate_output_file(sorted_input, jordan_formula, visible_columns, select_mode):
     now_et = datetime.now(pytz.timezone('America/New_York'))
     today_str = now_et.strftime('%Y-%m-%d %H%M')
-    eo_name = "selected" if SELECT_MODE else "sorted"
+    eo_name = "selected" if select_mode else "sorted"
     fname = f"warrennolan_nitty_{'formula' if jordan_formula else 'net'}_{eo_name}_{today_str}.xlsx"
     to_log(f'Generating file at {os.getcwd()}\\{fname}')
     with xlsxwriter.Workbook(fname) as workbook:
@@ -599,14 +595,11 @@ def cleanse_team_data(row):
 
 
 def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
-                         ineligible_teams, ineligible):
-    global SELECT_TEAMS
-    global SELECT_MODE
-
+                         ineligible_teams, ineligible, select_mode, select_teams):
     team_data_obj = None
     net, team, conf, conf_record, overall_record, sos, nc_record, nc_sos, home_record, road_record, neutral_record, q1_record, q2_record, q3_record, q4_record, avg_net_wins, avg_net_losses = cleansed_team_data
 
-    if not ineligible and team not in ineligible_teams and (not SELECT_MODE or team in SELECT_TEAMS):
+    if not ineligible and team not in ineligible_teams and (not select_mode or team in select_teams):
         to_log('   Getting {team} Stats'.format(team=team))
         team_url, kpi, sor, wab, bpi, pom, t_rank, high_q1_record, high_q1_wins, high_q1_losses, high_q1_rn_record, high_q1_rn_wins, high_q1_rn_losses, al_record, al_wins, al_losses = get_team_stats(
             team, at_large_teams)
@@ -689,14 +682,14 @@ def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
     return team_data_obj
 
 
-def extract_team_data(row, at_large_teams, ineligible_teams):
+def extract_team_data(row, at_large_teams, ineligible_teams, select_mode, select_teams):
     team_data_obj = None
     if not row[0][0].startswith('NET\n'):
         cleansed_team_data, conf_leader, ineligible = cleanse_team_data(row)
         del row
         team_data_obj = create_team_data_obj(cleansed_team_data, conf_leader,
                                              at_large_teams, ineligible_teams,
-                                             ineligible)
+                                             ineligible, select_mode, select_teams)
         del cleansed_team_data
 
     return team_data_obj
@@ -714,7 +707,7 @@ def splice_in_team_dict(team_dict, out_list, team_dict_idx):
     return out_list
 
 
-def sort_teams(in_list, formula):
+def sort_teams(in_list, formula, select_mode):
     out_list = []
     log_bottom_list = []
     for idx, team_dict in enumerate(in_list):
@@ -734,7 +727,7 @@ def sort_teams(in_list, formula):
                 team_dict_idx = 0
                 for out_list_idx, team_to_cmp in enumerate(out_list[::-1]):
                     out_list_idx = len(out_list) - 1 - out_list_idx
-                    if compare_teams(team_dict, team_to_cmp, formula) > 0:
+                    if compare_teams(team_dict, team_to_cmp, formula, select_mode) > 0:
                         # team_to_cmp is better. team_dict should go just below them
                         team_dict_idx = out_list_idx + 1
                         break
@@ -749,9 +742,6 @@ def sort_teams(in_list, formula):
 
 
 def do_the_work():
-    global SELECT_MODE
-    global SELECT_TEAMS
-
     config_file = 'config.txt'
     fname = None
     if os.path.exists(config_file):
@@ -770,12 +760,12 @@ def do_the_work():
             visible_columns = config.get('VISIBLE_COLUMNS', [])
 
             if use_jordan_formula:
-                SELECT_MODE = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
-                SELECT_TEAMS = set(config.get('SELECTED', []) or [])
+                select_mode = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
+                select_teams = set(config.get('SELECTED', []) or [])
 
             to_log('Getting all team stats')
             for row in raw_table_data[1:]:
-                team_data = extract_team_data(row, at_large_teams, ineligible_teams)
+                team_data = extract_team_data(row, at_large_teams, ineligible_teams, select_mode, select_teams)
                 if team_data:
                     team_dict_list.append(team_data)
                 gc.collect()
@@ -784,13 +774,13 @@ def do_the_work():
                 to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
             elif use_jordan_formula:
                 to_log('\n\nSorting results and writing to file\n')
-                sorted_team_list = sort_teams(team_dict_list, config['JORDAN_FORMULA'])
+                sorted_team_list = sort_teams(team_dict_list, config['JORDAN_FORMULA'], select_mode)
                 fname = generate_output_file(sorted_team_list, use_jordan_formula,
-                                     visible_columns)
+                                     visible_columns, select_mode)
             else:
                 to_log('\n\nWriting results to file\n')
                 fname = generate_output_file(team_dict_list, use_jordan_formula,
-                                     visible_columns)
+                                     visible_columns, select_mode)
 
             to_log('All done.')
     else:
@@ -803,37 +793,64 @@ app = Flask(__name__)
 
 OUTPUT_FILENAME = None
 LOG_FILENAME = None
-processing_status = {"in_progress": False, "file_downloaded": True}
+STATE = "state"
+IDLE = "idle"
+PROCESSING = "processing"
+DOWNLOAD_READY = "dl_ready"
+DOWNLOAD_DONE = "dl_done"
+ERROR = "error"
+processing_status = {STATE: IDLE, ERROR: None}
+processing_lock = threading.Lock()
 
 def create_excel_file():
     global processing_status
     global OUTPUT_FILENAME
     global LOG_FILENAME
 
-    processing_status["in_progress"] = True
-    processing_status["file_downloaded"] = False
+    with processing_lock:
+        processing_status[STATE] = PROCESSING
+        processing_status[ERROR] = None
 
-    directory = Path(".")
-    for file in directory.glob("warren*xlsx"):
-        if file.is_file():
-            file.unlink()
+        try:
+            directory = Path(".")
+            for file in directory.glob("warren*xlsx"):
+                if file.is_file():
+                    file.unlink()
 
-    OUTPUT_FILENAME, LOG_FILENAME = do_the_work()
+            OUTPUT_FILENAME, LOG_FILENAME = do_the_work()
 
-    # Mark as done
-    processing_status["in_progress"] = False
+        except Exception as e:
+            logging.exception("Fatal error during processing")
+            LOG_FILENAME = LOG_FNAME
+            processing_status[STATE] = ERROR
+            processing_status[ERROR] = str(e)
+        finally:
+            if processing_status[STATE] != ERROR:
+                processing_status[STATE] = DOWNLOAD_READY
 
 
 def in_progress():
-    return '''
-        <!doctype html>
-        <html>
-            <body>
-                <h1>File is being processed...</h1>
-               <p>Check status: <a href="/status">Click here</a></p>
-            </body>
-        </html>
-    '''
+    if processing_status[STATE] == ERROR:
+        return '''
+            <!doctype html>
+            <html>
+                <body>
+                   <h1>Error!!!!!!!!!!!!!!!!!!!!!!!!!</h1>
+                   <p>{}</p>
+                   <a href="/reset">Reset</a>
+                </body>
+            </html>
+        '''.format(processing_status[ERROR])
+    else:
+        return '''
+            <!doctype html>
+            <html>
+                <body>
+                    <h1>File is being processed...</h1>
+                   <p>Check status: <a href="/status">Click here</a></p>
+                </body>
+            </html>
+        '''
 
 
 def upload_config():
@@ -859,6 +876,9 @@ def upload_config():
 @app.route("/", methods=["GET", "POST", "HEAD"])
 def home_page():
     if request.method == "POST":
+        if not processing_lock.acquire(blocking=False):
+            return "Processing already running. Wait a couple minutes.", 400
+
         if "file" not in request.files:
             return "No file uploaded", 400
         file = request.files["file"]
@@ -866,9 +886,9 @@ def home_page():
             return "No selected file", 400
         elif file.filename != "config.txt":
             return "File must be named config.txt", 400
-        elif processing_status["in_progress"]:
+        elif processing_status[STATE] == PROCESSING:
             return 'Request in progress. Cannot start a new request until the last one is done. <a href="/">Click here</a>', 400
-        elif not processing_status["file_downloaded"]:
+        elif not processing_status[STATE] == DOWNLOAD_READY:
             return 'Last request is complete but excel file has not been downloaded. Cannot start new request until the excel file has been <a href="/download_excel">downloaded</a>.', 400
         else:
             input_filepath = os.path.join(os.getcwd(), file.filename)
@@ -880,7 +900,7 @@ def home_page():
 
             return in_progress()
     elif request.method == "GET":
-        if not processing_status["in_progress"]:
+        if processing_status[STATE] in [IDLE, DOWNLOAD_DONE]:
             return upload_config()
         else:
             return in_progress()
@@ -891,17 +911,17 @@ def home_page():
 @app.route("/status")
 def check_status():
     """Endpoint to check if the file is ready for download."""
-    if not processing_status["in_progress"] and not processing_status["file_downloaded"]:
+    if processing_status[STATE] == DOWNLOAD_READY:
         return '''
         <h1>Processing complete!</h1>
         <p><a href="/download_excel">Download Excel</a></p>
         <p><a href="/download_log">Download Log</a></p>
         '''
-    elif processing_status["in_progress"] and not processing_status["file_downloaded"]:
+    elif processing_status[STATE] == PROCESSING:
         return '''
             <h1>Processing...</h1><p>Please wait and refresh this page.</p>
         '''
-    elif not processing_status["in_progress"] and processing_status["file_downloaded"]:
+    elif processing_status[STATE] == DOWNLOAD_DONE:
         return '''
             <h1>Processing...</h1><p>Processing complete and the output has been downloaded. Go <a href="/">home</a></p>
         '''
@@ -911,12 +931,12 @@ def download_excel_file():
     """Download the processed Excel file."""
     global OUTPUT_FILENAME
 
-    if processing_status["in_progress"]:
+    if processing_status[STATE] == PROCESSING:
         return "File is not ready yet", 400
-    elif processing_status["file_downloaded"]:
+    elif processing_status[STATE] == DOWNLOAD_DONE:
         return "File was already downloaded. Check your Downloads folder.", 400
     else:
-        processing_status["file_downloaded"] = True
+        processing_status[STATE] = DOWNLOAD_DONE
         return f"""
         <!doctype html>
         <html>
@@ -944,10 +964,19 @@ def get_excel():
 def download_log_file():
     global LOG_FILENAME
 
-    if processing_status["in_progress"]:
+    if processing_status[STATE] in [PROCESSING, IDLE]:
         return "File is not ready yet", 400
     else:
         return send_file(LOG_FILENAME, as_attachment=True)
+
+
+@app.route("/reset")
+def reset():
+    global processing_status, OUTPUT_FILENAME, LOG_FILENAME
+    processing_status = {STATE: IDLE, ERROR: None}
+    OUTPUT_FILENAME = None
+    LOG_FILENAME = None
+    return "Reset complete. <a href='/'>Home</a>"
 
 
 if __name__ == "__main__":
