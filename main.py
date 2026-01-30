@@ -876,9 +876,6 @@ def upload_config():
 @app.route("/", methods=["GET", "POST", "HEAD"])
 def home_page():
     if request.method == "POST":
-        if not processing_lock.acquire(blocking=False):
-            return "Processing already running. Wait a couple minutes.", 400
-
         if "file" not in request.files:
             return "No file uploaded", 400
         file = request.files["file"]
@@ -888,7 +885,7 @@ def home_page():
             return "File must be named config.txt", 400
         elif processing_status[STATE] == PROCESSING:
             return 'Request in progress. Cannot start a new request until the last one is done. <a href="/">Click here</a>', 400
-        elif not processing_status[STATE] == DOWNLOAD_READY:
+        elif processing_status[STATE] == DOWNLOAD_READY:
             return 'Last request is complete but excel file has not been downloaded. Cannot start new request until the excel file has been <a href="/download_excel">downloaded</a>.', 400
         else:
             input_filepath = os.path.join(os.getcwd(), file.filename)

@@ -4,7 +4,7 @@ JORDAN_FORMULA:
     # true: Sort teams by Jordan's formula
     # false: Sort teams by NET
     ENABLED: true
-    SELECT_MODE: true
+    SELECT_MODE: false
     NEW_RECORD_COMPARISON: true
     SOR_PTS: 12
     ROAD_AND_NEUTRAL_PTS: 5
