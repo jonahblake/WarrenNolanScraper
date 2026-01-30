@@ -2,7 +2,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from flask import Flask, send_file, request, Response
 import gc
-import json
+import traceback
 import logging
 import os
 from pathlib import Path
@@ -12,6 +12,9 @@ import time
 import threading
 import xlsxwriter
 import yaml
+import queue
+
+log_queue = queue.Queue()
 
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
@@ -259,8 +262,26 @@ X_WINS, Y_WINS, TIE = -1, 1, 0
 
 
 def to_log(in_str, to_stdout=True):
+    """
+    Logs a message to console, file, and SSE queue.
+    Ensures multi-line messages and stack traces print line-by-line live.
+    """
+    if in_str is None:
+        return
+
+    # Convert to string
+    in_str = str(in_str)
+
+    # Print to console and browser
     if to_stdout:
-        print(in_str)
+        print(in_str, flush=True)
+
+        # Split multi-line messages and enqueue each line separately
+        for line in in_str.splitlines():
+            # Put a line in the queue immediately for streaming
+            log_queue.put(line)
+
+    # Log to file via logging
     logging.info(in_str)
 
 
@@ -284,7 +305,7 @@ def compare_record(x_wins, x_losses, y_wins, y_losses, metric_pts, x_pts,
             elif y_losses < x_losses:
                 y_pts += metric_pts
             else:
-                to_log('      No points awarded due to W-L tie')
+                to_log('      No points awarded due to W-L tie', to_stdout=False)
     else:
         if x_wins == 0 and y_wins > 0:
             y_pts += metric_pts
@@ -762,6 +783,8 @@ def do_the_work():
             if use_jordan_formula:
                 select_mode = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
                 select_teams = set(config.get('SELECTED', []) or [])
+            else:
+                select_mode, select_teams = False, []
 
             to_log('Getting all team stats')
             for row in raw_table_data[1:]:
@@ -781,8 +804,6 @@ def do_the_work():
                 to_log('\n\nWriting results to file\n')
                 fname = generate_output_file(team_dict_list, use_jordan_formula,
                                      visible_columns, select_mode)
-
-            to_log('All done.')
     else:
         to_log('The config.yaml file is missing. Doing nothing, buh bye.')
 
@@ -820,13 +841,16 @@ def create_excel_file():
             OUTPUT_FILENAME, LOG_FILENAME = do_the_work()
 
         except Exception as e:
-            logging.exception("Fatal error during processing")
             LOG_FILENAME = LOG_FNAME
             processing_status[STATE] = ERROR
             processing_status[ERROR] = str(e)
+            tb = traceback.format_exc()
+            to_log("FATAL ERROR:")
+            to_log(tb)
         finally:
             if processing_status[STATE] != ERROR:
                 processing_status[STATE] = DOWNLOAD_READY
+        log_queue.put("__done__")
 
 
 def in_progress():
@@ -905,6 +929,38 @@ def home_page():
         return "", 200
 
 
+@app.route("/status_stream")
+def status_stream():
+    def generate():
+        done_sent = False
+        while True:
+            # Send all queued lines immediately
+            while not log_queue.empty():
+                msg = log_queue.get()
+                if msg == "__done__":
+                    done_sent = True
+                    continue
+                for line in str(msg).splitlines():
+                    # Send the line and force flush
+                    yield f"data: {line}\n\n"
+                    yield ": \n\n"  # SSE comment → forces flush
+
+            # Finish if done and queue is empty
+            if done_sent and log_queue.empty():
+                yield "data: __done__\n\n"
+                break
+
+            # Short heartbeat if queue is empty to keep connection alive
+            yield ": \n\n"
+            time.sleep(0.05)
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "X-Accel-Buffering": "no"
+                    })
+
+
 @app.route("/status")
 def check_status():
     """Endpoint to check if the file is ready for download."""
@@ -916,7 +972,50 @@ def check_status():
         '''
     elif processing_status[STATE] == PROCESSING:
         return '''
-            <h1>Processing...</h1><p>Please wait and refresh this page.</p>
+        <!doctype html>
+        <html>
+            <head>
+                <title>Processing...</title>
+                <style>
+                    #logOutput {
+                        border:1px solid #ccc;
+                        padding:10px;
+                        height:400px;
+                        overflow:auto;
+                        white-space: pre-wrap;
+                        font-family: monospace;
+                        background-color: #f9f9f9;
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>Processing...</h1>
+                <pre id="logOutput"></pre>
+    
+                <script>
+                    var logOutput = document.getElementById("logOutput");
+                    var evtSource = new EventSource("/status_stream");
+    
+                    evtSource.onmessage = function(e) {
+                        if (e.data === "__done__") {
+                            evtSource.close();
+                            logOutput.innerHTML += "\\n--- All done. Reload page to get results. ---\\n";
+                            logOutput.scrollTop = logOutput.scrollHeight;
+                            return;
+                        }
+    
+                        if (e.data.trim() !== "") {
+                            logOutput.innerHTML += e.data + "\\n";
+                            logOutput.scrollTop = logOutput.scrollHeight;
+                        }
+                    };
+    
+                    evtSource.onerror = function(e) {
+                        console.error("SSE error:", e);
+                    };
+                </script>
+            </body>
+        </html>
         '''
     elif processing_status[STATE] == DOWNLOAD_DONE:
         return '''
