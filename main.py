@@ -14,7 +14,7 @@ import xlsxwriter
 import yaml
 import queue
 
-status_queue = queue.Queue()
+log_queue = queue.Queue()
 
 MONTH_INT = int(datetime.strftime(datetime.today(), '%m'))
 YEAR_INT = int(datetime.strftime(datetime.today(), '%Y'))
@@ -279,7 +279,7 @@ def to_log(in_str, to_stdout=True):
         # Split multi-line messages and enqueue each line separately
         for line in in_str.splitlines():
             # Put a line in the queue immediately for streaming
-            status_queue.put(line)
+            log_queue.put(line)
 
     # Log to file via logging
     logging.info(in_str)
@@ -622,7 +622,6 @@ def create_team_data_obj(cleansed_team_data, conf_leader, at_large_teams,
 
     if not ineligible and team not in ineligible_teams and (not select_mode or team in select_teams):
         to_log('   Getting {team} Stats'.format(team=team))
-        status_queue.put('   Getting {team} Stats'.format(team=team))
         team_url, kpi, sor, wab, bpi, pom, t_rank, high_q1_record, high_q1_wins, high_q1_losses, high_q1_rn_record, high_q1_rn_wins, high_q1_rn_losses, al_record, al_wins, al_losses = get_team_stats(
             team, at_large_teams)
         home_wins, home_losses = record_to_wins_and_losses(home_record)
@@ -855,7 +854,7 @@ def create_excel_file():
         finally:
             if processing_status[STATE] != ERROR:
                 processing_status[STATE] = DOWNLOAD_READY
-        status_queue.put("DONE")  # Signal completion
+        log_queue.put("__done__")  # Signal completion
 
 
 def in_progress():
@@ -941,10 +940,14 @@ from flask import Response
 def status_stream():
     def generate():
         while True:
-            line = status_queue.get()  # Wait for next line
-            if line == "DONE":
+            line = log_queue.get()  # Wait for next line
+            if line == "__done__":
+                done_sent = True
                 break
             yield f"data: {line}\n\n"  # SSE format
+
+        if done_sent:
+            yield "data: __done__\n\n"
 
     return Response(generate(), mimetype="text/event-stream")
 
