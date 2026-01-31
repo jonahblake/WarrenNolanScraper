@@ -136,16 +136,16 @@ SELECTED:
     - Troy
     - UNCW
     - Portland State
-    - North Dakota State
+    - North Dakota State
     - Hawaii
     - UTA
-    - "Tennessee-Martin"
+    - "Tennessee-Martin"
     - Austin Peay
     - Winthrop
-    - East Tennessee State
-    - Navy
+    - East Tennessee State
+    - Navy
     - Long Island
-    - Wright State
+    - Wright State
     - Merrimack
     - UMBC
     - "Bethune-Cookman"

@@ -775,39 +775,51 @@ def do_the_work():
     fname = None
     if os.path.exists(config_file):
         with open(config_file, 'r') as f:
-            config = yaml.safe_load(f)
-            logging.basicConfig(level=logging.INFO,
-                                filename=LOG_FNAME,
-                                filemode='w',
-                                format='%(message)s')
-            team_dict_list = []
-            ineligible_teams = set(config.get('INELIGIBLE', []) or [])
-            at_large_teams = set(config.get('AT_LARGE', []) or [])
-            raw_table_data = get_net_nitty_raw_data()
+            text = f.read()
+        # Replace non-breaking spaces with normal spaces
+        # Remove problematic Unicode junk characters
+        text = text.replace("\u00a0", " ")  # NBSP → normal space
+        text = text.replace("\ufeff", "")  # BOM → delete
+        text = text.replace("Â", "")  # mojibake → delete
 
-            use_jordan_formula = 'JORDAN_FORMULA' in config and config['JORDAN_FORMULA'].get('ENABLED', False)
-            visible_columns = config.get('VISIBLE_COLUMNS', [])
+        try:
+            config = yaml.safe_load(text)
+        except Exception as e:
+            to_log(f"YAML ERROR: {e}")
+            raise
 
-            if use_jordan_formula:
-                select_mode = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
-                select_teams = set(config.get('SELECTED', []) or [])
-            else:
-                select_mode, select_teams = False, []
+        logging.basicConfig(level=logging.INFO,
+                            filename=LOG_FNAME,
+                            filemode='w',
+                            format='%(message)s')
+        team_dict_list = []
+        ineligible_teams = set(config.get('INELIGIBLE', []) or [])
+        at_large_teams = set(config.get('AT_LARGE', []) or [])
+        raw_table_data = get_net_nitty_raw_data()
 
-            to_log('Getting all team stats')
-            scrape_team_stats(raw_table_data, at_large_teams, ineligible_teams, select_mode, select_teams, team_dict_list)
+        use_jordan_formula = 'JORDAN_FORMULA' in config and config['JORDAN_FORMULA'].get('ENABLED', False)
+        visible_columns = config.get('VISIBLE_COLUMNS', [])
 
-            if not visible_columns:
-                to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
-            elif use_jordan_formula:
-                to_log('\n\nSorting results and writing to file\n')
-                sorted_team_list = sort_teams(team_dict_list, config['JORDAN_FORMULA'], select_mode)
-                fname = generate_output_file(sorted_team_list, use_jordan_formula,
-                                     visible_columns, select_mode)
-            else:
-                to_log('\n\nWriting results to file\n')
-                fname = generate_output_file(team_dict_list, use_jordan_formula,
-                                     visible_columns, select_mode)
+        if use_jordan_formula:
+            select_mode = config['JORDAN_FORMULA'].get('SELECT_MODE', False)
+            select_teams = set(config.get('SELECTED', []) or [])
+        else:
+            select_mode, select_teams = False, []
+
+        to_log('Getting all team stats')
+        scrape_team_stats(raw_table_data, at_large_teams, ineligible_teams, select_mode, select_teams, team_dict_list)
+
+        if not visible_columns:
+            to_log('No VISIBLE_COLUMNS specified. Doing nothing, buh bye.')
+        elif use_jordan_formula:
+            to_log('\n\nSorting results and writing to file\n')
+            sorted_team_list = sort_teams(team_dict_list, config['JORDAN_FORMULA'], select_mode)
+            fname = generate_output_file(sorted_team_list, use_jordan_formula,
+                                 visible_columns, select_mode)
+        else:
+            to_log('\n\nWriting results to file\n')
+            fname = generate_output_file(team_dict_list, use_jordan_formula,
+                                 visible_columns, select_mode)
     else:
         to_log('The config.yaml file is missing. Doing nothing, buh bye.')
 
